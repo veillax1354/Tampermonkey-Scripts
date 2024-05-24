@@ -117,7 +117,7 @@ if ((location.hostname == "chat.google.com") && frames.name.match(/(?:hostFrame\
             // console.log(element); // Beware, this is kinda laggy for some reason
             element.insertAdjacentHTML("beforeend", style);
             element.insertAdjacentHTML("beforeend", a);
-            let videoID = element.querySelector("div.V5MAMb > a.Pj9rof").href.match(/(?<=\.youtube\.com\/shorts\/)\w{11}/)[0];
+            let videoID = element.querySelector("div.V5MAMb > a.Pj9rof").href.match(/(?<=youtube\.com\/shorts\/)\w{11}/)[0];
             element.querySelector("a#youtube-embed-downloader").href = `https://www.y2mate.com/youtube/${videoID}`;
             element.setAttribute("youtube-embed-downloader-processed", "");
             return;
