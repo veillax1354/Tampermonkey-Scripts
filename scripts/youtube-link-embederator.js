@@ -10,7 +10,7 @@
 // ==/UserScript==
 
 (function() { 'use strict'; let debug = false;
-
+    
 function isYoutubeEmbed(iframe) {
     const src = iframe.src;
     return src.includes("youtube.com/embed") || src.includes("youtube-nocookie.com/embed/");
@@ -66,7 +66,7 @@ if ((location.hostname == "chat.google.com") && frames.name.match(/(?:hostFrame\
     );
 
     // A string of HTML code might not be allowed to be inserted without this whole policy detour
-    let policy;
+    let policy, trustedStyle, trustedA;
     try {
         policy = trustedTypes.createPolicy(
             // By using the date in the policy name, you never have to worry about not being able to create another default policy
@@ -75,18 +75,27 @@ if ((location.hostname == "chat.google.com") && frames.name.match(/(?:hostFrame\
                 createHTML: (string) => string
             }
         );
+        trustedStyle = policy.createHTML(
+            `<style id="youtube-embed-downloader">a#youtube-embed-downloader:hover { opacity: 1 !important; }</style>`
+        );
+        trustedA = policy.createHTML( // Hehe the placeholder href brings you to a random pretty image :]
+            `<a id="youtube-embed-downloader" href="https://picsum.photos/1920/1080" target="_blank" style="width: 320px; text-align: center; padding-top: 10px; opacity: .2; transition: opacity .2s;">Download Video</a>`
+        );
     } catch (error) {
         // Still log the error if it's something unexpected
         // if ( error.message !== `Failed to execute 'createPolicy' on 'TrustedTypePolicyFactory': Policy with name "default" already exists.`)
             console.error(error)
         ;
     }
-    const trustedStyle = policy.createHTML(
-        `<style id="youtube-embed-downloader">a#youtube-embed-downloader:hover { opacity: 1 !important; }</style>`
-    );
-    const trustedA = policy.createHTML( // Hehe the placeholder href brings you to a random pretty image :]
-        `<a id="youtube-embed-downloader" href="https://picsum.photos/1920/1080" target="_blank" style="width: 320px; text-align: center; padding-top: 10px; opacity: .2; transition: opacity .2s;">Download Video</a>`
-    );
+
+    if (typeof policy == "undefined") {
+        trustedStyle =
+            `<style id="youtube-embed-downloader">a#youtube-embed-downloader:hover { opacity: 1 !important; }</style>`
+        ;
+        trustedA = // Hehe the placeholder href brings you to a random pretty image :]
+            `<a id="youtube-embed-downloader" href="https://picsum.photos/1920/1080" target="_blank" style="width: 320px; text-align: center; padding-top: 10px; opacity: .2; transition: opacity .2s;">Download Video</a>`
+        ;
+    }
 
     function processElement(element, style, a) {
         // Check if the element is for a YT embed and if a download link wasn't already placed
@@ -177,7 +186,7 @@ if ((location.hostname == "chat.google.com") && frames.name.match(/(?:hostFrame\
     onElementReady("div.kwI9i.zX644e.yqoUIf.n3AJp:not([youtube-embed-downloader-processed])", false,
         element => processElement(element, trustedStyle, trustedA)
     );
-
+        
 } else if (debug) {
     console.warn(
         `If you're trying to run the script in Google Chat, know that it is running in the "${
