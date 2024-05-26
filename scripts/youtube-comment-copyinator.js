@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         Copy YouTube Comment Threads to Clipboard (YouTube API)
 // @namespace    http://tampermonkey.net/
-// @version      2024-05-19
-// @description  Requires a YouTube Data API key on line 35, which is obtainable from: ( https://console.cloud.google.com/ ). On top-level comments, you can click a button to copy the entire thread to your clipboard. The button appears when you hover over to the right of where it shows how long ago a comment was posted.
+// @version      2024-05-25
+// @description  Requires a YouTube Data API key on line 82, which is obtainable from: ( https://console.cloud.google.com/ ). On top-level comments, you can click a button to copy the entire thread (which includes the comment and all of its replies, if there are any) to your clipboard. The button appears when you hover over just to the right of where it shows how long ago a comment was posted.
 // @author       TheDerpyDude
-// @match        https://www.youtube.com/*
+// @match        https://www.youtube.com/watch?v=*
+// @match        https://www.youtube.com/shorts/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=youtube.com
 // @grant        unsafeWindow
 // ==/UserScript==
@@ -19,67 +20,112 @@
         commentDerpyUpdater = undefined;
     }
 
+    // Hopefully this should make the script work if you copy/paste it into the console as well as running it in TamperMonkey.
+    var windowAccess = (typeof GM_info == "undefined") ? window : unsafeWindow;
+
     // All text formatting occurs here
-    unsafeWindow.threadToText = function (comment, replies) {
-        let format = "yaml"; // Just choose the format here
+    windowAccess.threadToText = function (comment, replies) {
+
+        let format = true // <-- Set to true for plaintext, false for yaml
+            ? "plaintext" : "yaml"
+        ;
+
+        let commentSnippet = comment.items[0].snippet.topLevelComment.snippet;
+
         if (format == "plaintext") {
-            let text = `Comment by ${comment.items[0].snippet.topLevelComment.snippet.authorDisplayName}: ${comment.items[0].snippet.topLevelComment.snippet.textDisplay}`;
+            let text =
+                `Comment by ${
+                commentSnippet.authorDisplayName
+                }: ${
+                commentSnippet.textDisplay}`
+            ;
             if (replies)
                 for (const reply of replies.items) {
-                    text += `\n\n\tReply by ${reply.snippet.authorDisplayName}: ${reply.snippet.textDisplay}`;
+                    text += `\n\n\tReply by ${
+                        reply.snippet.authorDisplayName
+                        }: ${
+                        reply.snippet.textDisplay}`
+                    ;
                 }
             ;
             return text;
         } else if (format == "yaml") {
-            let text = `tagged: tag.derpy-youtube-comment-thread-018f93e2-f169-795c-881c-3f70edfa2806\ncomment:\n  author: ${comment.items[0].snippet.topLevelComment.snippet.authorDisplayName}\n  body: ${comment.items[0].snippet.topLevelComment.snippet.textDisplay}\n  replies:\n`;
+            let text =
+                `tagged: tag.derpy-youtube-comment-thread-018f93e2-f169-795c-881c-3f70edfa2806\ncomment:\n  author: ${
+                commentSnippet.authorDisplayName
+                }\n  body: ${
+                commentSnippet.textDisplay
+                }\n  replies:`
+            ;
             if (replies)
                 for (const reply of replies.items) {
-                    text += `\n    - reply:\n      author: ${reply.snippet.authorDisplayName}\n      body: ${reply.snippet.textDisplay}\n      tags: >-\n        unused for now`;
+                    text +=
+                        `\n    - reply:\n      author: ${
+                        reply.snippet.authorDisplayName
+                        }\n      body: ${
+                        reply.snippet.textDisplay
+                        }\n      tags: >-\n        unused for now`
+                    ;
                 }
             ;
-            text += '\n  tags: >-\n            unused for now';
+            text += '\n  tags: >-\n      unused for now';
             return text;
-        } else console.log("What? That shouldn't be possible 🤔"); //nice
+        } else console.error("In the script's threadToText function, choose either 'plaintext' or 'yaml' to format the text to.");
     }
 
-    unsafeWindow.copyThread = async function(button) {
+    // This gets the thread data and formats it with threadToText
+    windowAccess.copyThread = async function (button) {
 
-        /*Get an API Key from Google's Youtube Data API v3 - Make sure when creating credentials to choose API Key - https://console.cloud.google.com/apis/api/youtube.googleapis.com  */
-        let key = ""; // ✨✨✨ Key goes here ✨✨✨
+        // Get an API Key from Google's Youtube Data API v3
+        // Make sure when creating credentials to choose API Key
+        // https://console.cloud.google.com/apis/api/youtube.googleapis.com
+        let key = ""; // ✨✨✨ Your YouTube Data API key goes here ✨✨✨
 
         let commentID = button.parentElement.parentElement.parentElement.querySelector("a[href*=watch]").href.split('lc=')[1];
-        let comment = await (await fetch(`https://youtube.googleapis.com/youtube/v3/commentThreads?` +
-                                         `id=${commentID}&` +
-                                         `part=snippet&` +
-                                         `part=replies&` +
-                                         `textFormat=plainText&` +
-                                         `maxResults=100&` +
-                                         `key=${key}`
-                                        )).json();
-        let replies = await (await fetch(`https://youtube.googleapis.com/youtube/v3/comments?` +
-                                         `parentId=${commentID}&` +
-                                         `part=snippet&` +
-                                         `textFormat=plainText&` +
-                                         `maxResults=100&` +
-                                         `key=${key}`
-                                        )).json();
+        let comment = await (await fetch(
+            `https://youtube.googleapis.com/youtube/v3/commentThreads?` +
+            `id=${commentID}&` +
+            `part=snippet&` +
+            `part=replies&` +
+            `textFormat=plainText&` +
+            `maxResults=100&` +
+            `key=${key}`
+        )).json();
+        let replies = await (await fetch(
+            `https://youtube.googleapis.com/youtube/v3/comments?` +
+            `parentId=${commentID}&` +
+            `part=snippet&` +
+            `textFormat=plainText&` +
+            `maxResults=100&` +
+            `key=${key}`
+        )).json();
         // Continue requesting replies until they're all received
+        let nextPageTokenError = false;
         while (replies.nextPageToken) {
-            let replies2 = await (await fetch(`https://youtube.googleapis.com/youtube/v3/comments?` +
-                                              `parentId=${commentID}&` +
-                                              `pageToken=${replies.nextPageToken}&` +
-                                              `part=snippet&` +
-                                              `textFormat=plainText&` +
-                                              `maxResults=100&` +
-                                              `key=${key}`
-                                             )).json();
+            let replies2 = await (await fetch(
+                `https://youtube.googleapis.com/youtube/v3/comments?` +
+                `parentId=${commentID}&` +
+                `pageToken=${replies.nextPageToken}&` +
+                `part=snippet&` +
+                `textFormat=plainText&` +
+                `maxResults=100&` +
+                `key=${key}`
+            )).json();
             replies.items.push(...replies2.items);
+            if (replies.nextPageToken == replies2.nextPageToken) {
+                nextPageTokenError = true;
+                break;
+            }
             replies.nextPageToken = replies2.nextPageToken;
         }
 
-        let threadText = unsafeWindow.threadToText(comment, replies);
+        let threadText = windowAccess.threadToText(comment, replies);
         console.log(threadText);
+        if (nextPageTokenError)
+            console.error("The same nextPageToken was received twice, so not all thread replies could be included")
+        ;
         setClipboard(threadText);
+        console.log(`Retrieved and copied #${replies.items.length} replies in a thread`);
 
         // Dunno where I got this whole function lol, some of it from ChatGPT and maybe some from StackOverflow.
         // Some of it checks if the document is focused because otherwise clipboard.write errors.
@@ -113,19 +159,20 @@
         }
     }
 
+    windowAccess.appendDerpyButton = function (target) {
+        target.insertAdjacentHTML('beforeend',
+            `<div id="derpy" style="opacity: 0%;" onmouseover="this.style.opacity='100%';" onmouseout="this.style.opacity='0%';">
+                <span dir="auto" id="published-time-text" class="style-scope ytd-comment-view-model">&nbsp;~</span>
+                <span dir="auto" id="published-time-text" class="style-scope ytd-comment-view-model">
+                    <a class="yt-simple-endpoint style-scope ytd-comment-view-model" onclick="copyThread(this);">copy thread</a>
+                </span>
+            </div>`
+        );
+    }
+
     // Places the copy thread button to the right of all currently loaded buttons' age text.
     // The buttons aren't visible until you hover over them
     document.querySelectorAll("#comment #header-author").forEach(element => appendDerpyButton(element));
-
-    unsafeWindow.appendDerpyButton = function(target) {
-        target.innerHTML += `
-    <div id="derpy" style="opacity: 0%;" onmouseover="this.style.opacity='100%';" onmouseout="this.style.opacity='0%';">
-        <span dir="auto" id="published-time-text" class="style-scope ytd-comment-view-model">&nbsp;~</span>
-        <span dir="auto" id="published-time-text" class="style-scope ytd-comment-view-model">
-            <a class="yt-simple-endpoint style-scope ytd-comment-view-model" onclick="copyThread(this);">copy thread</a>
-        </span>
-    </div>`
-    }
 
     // Shoutout to this library for making a (somewhat more) simple way to run code on elements only after they've loaded.
     // Actually nevermind. This dang code kept being weird even in a simple test environment.
@@ -143,7 +190,8 @@
             callback(element);
         });
     }
-    let onElementReady = (selector, findOnce = false, callback = () => {}) => {
+
+    let onElementReady = (selector, findOnce = false, callback = () => { }) => {
         return new Promise((resolve) => {
             // Initial Query
             queryForElements(selector, (element) => {
@@ -170,46 +218,45 @@
             });
         });
     }
-    let waitForKeyElements = (selector, callback, findOnce) => onElementReady(selector, findOnce, callback);
 
     // Wait for Elements with a given CSS selector to enter the DOM.
     // Returns a Promise resolving with new Elements, and triggers a callback for every Element.
-    //
-    // @param {String} selector - CSS Selector
-    // @param {Boolean=} findOnce - Stop querying after first successful pass
-    // @param {function=} callback - Callback with Element
-    // @returns {Promise<Element>} - Resolves with Element
-    //
+    //     @param {String} selector - CSS Selector
+    //     @param {Boolean=} findOnce - Stop querying after first successful pass
+    //     @param {function=} callback - Callback with Element
+    //     @returns {Promise<Element>} - Resolves with Element
     onElementReady("ytd-comments#comments > ytd-item-section-renderer#sections > div#contents", true, () => {
 
         // Use a MutationObserver to add buttons to all new comments that
         // load after first running the script
-        var commentDerpyUpdater = new MutationObserver(mutations => {mutations.forEach(mutation => {
+        var commentDerpyUpdater = new MutationObserver(mutations => {
+            mutations.forEach(mutation => {
 
-            // What to do with each mutation
-            if (mutation.addedNodes.length)
-                mutation.addedNodes.forEach(addedNode => {
+                // What to do with each mutation
+                if (mutation.addedNodes.length)
+                    mutation.addedNodes.forEach(addedNode => {
 
-                    // What to do with each addedNode
-                    if (addedNode.nodeName == "YTD-COMMENT-THREAD-RENDERER")
-                        setTimeout(addedNode => {
-                            appendDerpyButton(addedNode.querySelector("#header-author"));
-                            // console.log(
-                            //     `derpyButton appended to child #${
-                            //         // Handy debug code to check what number child a top level comment is
-                            //         Array.from(addedNode.parentNode.children).indexOf(addedNode)
-                            //     }:`,
-                            //     addedNode
-                            // );
-                        }, 1000, addedNode);
-                    ;
-                });
-            ;
-        });});
+                        // What to do with each addedNode
+                        if (addedNode.nodeName == "YTD-COMMENT-THREAD-RENDERER")
+                            setTimeout(addedNode => {
+                                appendDerpyButton(addedNode.querySelector("#header-author"));
+                                // console.log(
+                                //     `derpyButton appended to child #${
+                                //         // Handy debug code to check what number child a top level comment is
+                                //         Array.from(addedNode.parentNode.children).indexOf(addedNode)
+                                //     }:`,
+                                //     addedNode
+                                // );
+                            }, 1000, addedNode);
+                        ;
+                    });
+                ;
+            });
+        });
 
         commentDerpyUpdater.observe(
             document.querySelector("ytd-comments#comments > ytd-item-section-renderer#sections > div#contents"),
-            {childList: true}
+            { childList: true }
         );
     });
 })();
