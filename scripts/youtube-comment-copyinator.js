@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         Copy YouTube Comment Threads to Clipboard (YouTube API)
 // @namespace    http://tampermonkey.net/
-// @version      2024-05-25
-// @description  Requires a YouTube Data API key on line 82, which is obtainable from: ( https://console.cloud.google.com/ ). On top-level comments, you can click a button to copy the entire thread (which includes the comment and all of its replies, if there are any) to your clipboard. The button appears when you hover over just to the right of where it shows how long ago a comment was posted.
+// @version      2024-05-28
+// @description  Requires a YouTube Data API key on line 84, which is obtainable from: ( https://console.cloud.google.com/ ). On top-level comments, you can click a button to copy the entire thread (which includes the comment and all of its replies, if there are any) to your clipboard. The button appears when you hover over just to the right of where it shows how long ago a comment was posted.
 // @author       TheDerpyDude
 // @match        https://www.youtube.com/watch?v=*
+// @match        https://www.youtube.com/live/*
 // @match        https://www.youtube.com/shorts/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=youtube.com
 // @grant        unsafeWindow
@@ -79,9 +80,15 @@
         // Get an API Key from Google's Youtube Data API v3
         // Make sure when creating credentials to choose API Key
         // https://console.cloud.google.com/apis/api/youtube.googleapis.com
-        let key = ""; // ✨✨✨ Your YouTube Data API key goes here ✨✨✨
+        // ✨✨✨ Your YouTube Data API key goes here ✨✨✨
+        let key = "";
 
-        let commentID = button.parentElement.parentElement.parentElement.querySelector("a[href*=watch]").href.split('lc=')[1];
+        // Scrape dat comment ID :) 
+        let headerAuthorElement = button.parentElement.parentElement.parentElement;
+        let commentLink = headerAuthorElement.querySelector("span > a[href*=watch]");
+        commentLink ??= headerAuthorElement.querySelector("span > a[href*=live]");
+        let commentID = commentLink.href.split('lc=')[1];
+
         let comment = await (await fetch(
             `https://youtube.googleapis.com/youtube/v3/commentThreads?` +
             `id=${commentID}&` +
