@@ -97,31 +97,50 @@
             ;
         }
 
+        // Check if the element is for a YT embed and if a download link wasn't already placed
         function processElement(element, style, a) {
-            // Check if the element is for a YT embed and if a download link wasn't already placed
+            // Check for youtube.com embed
             if (
                 element.querySelector("div > div > div > div > div.zFEXud > span.RhNmFb")?.innerText == "YouTube video" &&
                 !element.querySelector("#youtube-embed-downloader")
             ) {
-                // console.log(element); // Beware, this is kinda laggy for some reason
+                // console.log(element); // Beware, this is might be kinda laggy for some reason
                 element.insertAdjacentHTML("beforeend", style);
                 element.insertAdjacentHTML("beforeend", a);
                 let videoID = element.querySelector(".MFBre").getAttribute("data-id");
                 element.querySelector("a#youtube-embed-downloader").href = `https://www.y2mate.com/youtube/${videoID}`;
                 element.setAttribute("youtube-embed-downloader-processed", "");
                 return;
-            } else if (
+            } else
+
+            // Check for youtube shorts embed
+                if (
                 element.querySelector("div.V5MAMb > a.Pj9rof")?.href.includes("youtube.com/shorts/") &&
                 !element.querySelector("#youtube-embed-downloader")
             ) {
-                // console.log(element); // Beware, this is kinda laggy for some reason
+                // console.log(element); // Beware, this is might be kinda laggy for some reason
                 element.insertAdjacentHTML("beforeend", style);
                 element.insertAdjacentHTML("beforeend", a);
-                let videoID = element.querySelector("div.V5MAMb > a.Pj9rof").href.match(/(?<=youtube\.com\/shorts\/)\w{11}/)[0];
+                let videoID = element.querySelector("div.V5MAMb > a.Pj9rof").href.match(/(?<=youtube\.com\/shorts\/)[\w-]{11}/)[0];
+                element.querySelector("a#youtube-embed-downloader").href = `https://www.y2mate.com/youtube/${videoID}`;
+                element.setAttribute("youtube-embed-downloader-processed", "");
+                return;
+            } else
+            
+            // check for youtube music embed
+                if (
+                element.querySelector("div.V5MAMb > a.Pj9rof")?.href.includes("music.youtube.com/watch?") &&
+                !element.querySelector("#youtube-embed-downloader")
+            ) {
+                // console.log(element); // Beware, this is might be kinda laggy for some reason
+                element.insertAdjacentHTML("beforeend", style);
+                element.insertAdjacentHTML("beforeend", a);
+                let videoID = element.querySelector("div.V5MAMb > a.Pj9rof").href.match(/(?<=music\.youtube\.com\/watch\?v=)[\w-]{11}/)[0];
                 element.querySelector("a#youtube-embed-downloader").href = `https://www.y2mate.com/youtube/${videoID}`;
                 element.setAttribute("youtube-embed-downloader-processed", "");
                 return;
             }
+
             let youtubeContainer = element.querySelector("div.V5MAMb > div.MFBre[data-id]");
             if (youtubeContainer == null)
                 element.setAttribute("youtube-embed-downloader-processed", "")
